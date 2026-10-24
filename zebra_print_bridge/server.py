@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 from . import __version__, ui
 from .devices import PrinterNotFound, Registry
 from .jobs import JobLog
+from .printer_status import StatusMonitor
 from .settings import OriginPolicy
 
 log = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ class BridgeServer(ThreadingHTTPServer):
         self.config = config
         self.registry = registry or Registry(config)
         self.jobs = JobLog(config["max_jobs"], config["encoding"])
+        self.status = StatusMonitor(self.registry, config["encoding"])
         self.preview_cache = ui.PreviewCache()
         self.stopped_from_viewer = False
         super().__init__((config["host"], config["port"]), Handler)
@@ -192,18 +194,19 @@ class Handler(BaseHTTPRequestHandler):
         self.write_to_printer(payload["_uid"], str(payload["data"]))
         self._send(200, "")
 
-    def write_to_printer(self, uid: str, text: str):
-        """Send to the printer and record it in the viewer (failures too)."""
+    def write_to_printer(self, uid: str, text: str, from_web: bool = True) -> dict:
+        """Send to the printer and record it in the viewer (failures too). Returns the job."""
         channel = self.server.registry.channel(uid)
         data = text.encode(self.server.config["encoding"])
         log.info("write %s (%s): %d bytes", channel.info.name, channel.info.uid, len(data))
         try:
-            channel.write(data)
+            # Only the web app follows a write with a read (sendThenRead).
+            channel.write(data, expect_read=from_web)
         except OSError as exc:
             message = f"Error writing to printer {channel.info.name}: {exc}"
             self.server.jobs.record(channel.info, text, error=message)
             raise HttpError(500, message)
-        self.server.jobs.record(channel.info, text)
+        return self.server.jobs.record(channel.info, text)
 
     def _read(self):
         payload = self._parse_device_request()

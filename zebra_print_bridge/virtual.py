@@ -110,7 +110,11 @@ class VirtualTransport(Transport):
         if printer is None:
             raise OSError("virtual printer was removed")
         self.pending = bytearray()  # like drain() on the real transports
-        for _ in range(data.upper().count(b"~HQES")):
+        upper = data.upper()
+        if b"~HI" in upper:
+            dpmm = {152: 6, 203: 8, 300: 12, 600: 24}[printer["dpi"]]
+            self.pending += f"\x02{printer['name']},V-virtual,{dpmm},8192KB\x03\r\n".encode()
+        for _ in range(upper.count(b"~HQES")):
             self.pending += zpl.hqes_response(printer["errors"], printer["warnings"])
 
     def read(self, timeout):

@@ -164,3 +164,71 @@ def classify(text: str) -> str:
     if "~WC" in upper:
         return "config"
     return "command"
+
+
+# --- printer responses ------------------------------------------------------------
+
+HQES_LINE_RE = re.compile(r"(ERRORS|WARNINGS):\s*(\d)\s+([0-9A-Fa-f]{8})\s+([0-9A-Fa-f]{8})")
+DPMM_TO_DPI = {6: 152, 8: 203, 12: 300, 24: 600}
+
+
+def _decode_flags(hex_group: str, table: dict) -> list:
+    """Bitwise decode of the last 8-hex-digit group (group 1) of a ~HQES line."""
+    digits = [int(c, 16) for c in hex_group]
+    return [key for key, (_, position, value) in table.items() if digits[8 - position] & value]
+
+
+def parse_hqes(text: str):
+    """{"errors": [keys], "warnings": [keys]} from a ~HQES response, or None if there is none."""
+    found = {kind: (flag, group1) for kind, flag, _, group1 in HQES_LINE_RE.findall(text or "")}
+    if not found:
+        return None
+    result = {}
+    for kind, key, table in (("ERRORS", "errors", ERROR_FLAGS), ("WARNINGS", "warnings", WARNING_FLAGS)):
+        flag, group1 = found.get(kind, ("0", "0" * 8))
+        result[key] = _decode_flags(group1, table) if flag == "1" else []
+    return result
+
+
+def parse_hi(text: str):
+    """~HI answers "<model>,<firmware>,<dots/mm>,<memory>" between STX and ETX."""
+    body = (text or "").replace("\x02", "").split("\x03")[0].strip()
+    parts = [p.strip() for p in body.split(",")]
+    if len(parts) < 3 or not parts[0]:
+        return None
+    info = {"model": parts[0], "firmware": parts[1], "memory": parts[3] if len(parts) > 3 else ""}
+    try:
+        info["dpi"] = DPMM_TO_DPI.get(int(parts[2]))
+    except ValueError:
+        info["dpi"] = None
+    return info
+
+
+def _field_text(text: str) -> str:
+    """Make arbitrary text safe inside ^FD (^ and ~ would start a command)."""
+    return re.sub(r"[\^~\r\n]", " ", text)
+
+
+def test_label(name: str, uid: str, dpi: int, when: str) -> str:
+    """Small test label (fits 2.25 x 1.25 in), scaled to the printer density.
+
+    It includes accented characters so the operator can check UTF-8 (^CI28) on paper.
+    """
+    s = dpi / 203
+
+    def d(value):
+        return max(1, round(value * s))
+
+    def text(y, size, value):
+        return f"^FO{d(20)},{d(y)}^A0N,{d(size)},{d(size)}^FD{_field_text(value)}^FS"
+
+    return "".join([
+        "^XA^CI28",
+        text(14, 30, "Zebra Print Bridge"),
+        text(50, 22, name),
+        text(76, 18, f"{uid} · {dpi} dpi"),
+        text(100, 18, when),
+        text(124, 22, "ÁÉÍÓÚ ñ ü ç €"),
+        f"^FO{d(20)},{d(154)}^BY{d(2)}^BCN,{d(46)},N,N,N^FDZPB-TEST^FS",
+        "^XZ",
+    ])

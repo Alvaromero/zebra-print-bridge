@@ -17,7 +17,7 @@ What is planned next. Done items move to `CHANGELOG.md` once releases start.
 - [ ] **`libusb` backend.** Plan B for models whose status cannot be read through `usblp`: talk to the bulk endpoints directly (detaching `usblp` for that device).
 - [ ] **Offline preview.** A local ZPL renderer, even a basic one, so previews do not send data to a third party.
 - [ ] **Complete the Browser Print protocol:** `sendFile` (multipart), `sendUrl` and `/convert` (image/PDF to ZPL with `^GF`). Our web app does not use them, other apps do.
-- [ ] **Live printer status in the viewer:** model, firmware and media status from `~HQES` / `~HI` / SGD `getvar`, refreshed periodically.
+- [ ] **More printer details:** SGD `getvar` (media type, print width, odometer, head temperature) next to the live status from `~HI` / `~HQES`.
 
 ## Later
 

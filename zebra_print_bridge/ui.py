@@ -167,6 +167,7 @@ def _state(server) -> dict:
         "printers": [dict(info.to_device(), **_printer_settings(server, info.uid)) for info in printers],
         "jobs": server.jobs.summaries(),
         "pending_origins": server.origins.pending(),
+        "printer_status": server.status.snapshot(),
         "flags": {
             "errors": {key: value[0] for key, value in zpl.ERROR_FLAGS.items()},
             "warnings": {key: value[0] for key, value in zpl.WARNING_FLAGS.items()},
@@ -317,8 +318,18 @@ def _post(h, path, body):
         data = _job(server, body["job_id"])["data"] if "job_id" in body else str(body.get("data", ""))
         if not uid or not data:
             raise UiError(400, "uid and job_id/data are required")
-        h.write_to_printer(str(uid), data)
-        _send_json(h, {"ok": True})
+        job = h.write_to_printer(str(uid), data, from_web=False)
+        _send_json(h, {"ok": True, "job_id": job["id"]})
+    elif path == "/ui/api/printers/status":
+        uids = body.get("uids")
+        _send_json(h, server.status.refresh(set(map(str, uids)) if uids else None))
+    elif path == "/ui/api/printers/test-label":
+        uid = str(body.get("uid", ""))
+        channel = server.registry.channel(uid)
+        dpi = server.status.dpi(uid) or _printer_settings(server, uid)["dpi"]
+        label = zpl.test_label(channel.info.name, uid, dpi, time.strftime("%Y-%m-%d %H:%M:%S %z"))
+        job = h.write_to_printer(uid, label, from_web=False)
+        _send_json(h, {"ok": True, "job_id": job["id"]})
     elif path == "/ui/api/virtual":
         name = str(body.get("name", "")).strip()
         if not name:

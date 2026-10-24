@@ -85,5 +85,26 @@ class LintTest(unittest.TestCase):
         self.assertEqual(zpl.lint("^XA^FDcafé^FS^XZ", encoding="cp1252"), [])
 
 
+class PrinterResponsesTest(unittest.TestCase):
+    def test_parse_hqes_decodes_bitwise(self):
+        text = zpl.hqes_response(["head_open", "media_out"], ["need_calibrate"]).decode()
+        self.assertEqual(zpl.parse_hqes(text), {"errors": ["media_out", "head_open"], "warnings": ["need_calibrate"]})
+        self.assertEqual(zpl.parse_hqes(zpl.hqes_response().decode()), {"errors": [], "warnings": []})
+        self.assertIsNone(zpl.parse_hqes(""))
+
+    def test_parse_hi(self):
+        self.assertEqual(zpl.parse_hi("\x02ZD421-300dpi,V93.21.15Z,12,8192KB\x03\r\n"),
+                         {"model": "ZD421-300dpi", "firmware": "V93.21.15Z", "memory": "8192KB", "dpi": 300})
+        self.assertIsNone(zpl.parse_hi(""))
+
+    def test_test_label_scales_and_is_safe(self):
+        label = zpl.test_label("Dock ^1~", "usb:ABC", 300, "2026-01-01 10:00")
+        self.assertTrue(label.startswith("^XA^CI28") and label.endswith("^XZ"))
+        self.assertIn("^FDDock  1 ^FS", label)  # ^ and ~ cannot start commands
+        self.assertIn("^A0N,44,44", label)  # 30 dots at 203 dpi -> 44 at 300 dpi
+        self.assertEqual(zpl.lint(label), [])
+        self.assertEqual(len(zpl.labels(label)), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

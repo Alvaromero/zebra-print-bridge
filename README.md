@@ -2,7 +2,7 @@
 
 A replacement for **Zebra Browser Print** on Ubuntu (22.04 or newer), aimed at **development**. It is a local service that speaks the same HTTP protocol on `http://127.0.0.1:9100/`, so the web app (my.recommercebrands.com) prints **without frontend changes**, using the official, unmodified `BrowserPrint-3.1.250.min.js` library.
 
-- **Virtual printers** show up in the web app like real ones and answer `~HQES` with the status you pick (ready, media out, head open, paused…). No hardware needed.
+- **Virtual printers** show up in the web app like real ones and answer `~HQES` (and `~HI`) with the status you pick (ready, media out, head open, paused…). No hardware needed.
 - **Website approval** like Browser Print: a new website has to be allowed before it can print (desktop notification + Allow/Block in the viewer).
 - **Viewer** at `http://127.0.0.1:9100/ui`, in English and Spanish, with a **Settings** page (network printers, default printer, authorized websites, stop the service): every job the web app sends (to virtual and real printers), the printer's response, **encoding warnings**, a **ZPL editor** and a **label preview** with the same controls as the [Labelary viewer](https://labelary.com/viewer.html) (density, size in in/cm/mm, rotation, quality, PNG/PDF export).
 - Real printers too: **USB** (`usblp` driver, `/dev/usb/lpX`), **network** (TCP 9100) and, optionally, raw **CUPS** queues (write only).
@@ -69,6 +69,8 @@ Open `http://127.0.0.1:9100/ui` (`/` redirects there). It has two tabs, **Jobs**
 
 ### Printers and virtual printers
 
+- **Live status:** each printer card shows its state (ready, the active errors and warnings, offline with the reason, or "no status" for CUPS queues), model, firmware and density. The viewer asks with `~HI` and `~HQES` when it opens, every 60 seconds while the tab is visible, and with the ↻ button. These queries are not recorded as jobs, and they wait (up to 3 s) while the web app has a `sendThenRead` in progress, so they never take its answer.
+- **Test label:** prints a small label (it fits 2.25 × 1.25 in, scaled to the printer's density) with the printer name, uid, date and a barcode, plus `ÁÉÍÓÚ ñ ü ç €` to check UTF-8 on paper. It is recorded as a job, so it can be previewed.
 - Real and virtual printers are listed together. There is one virtual printer by default, `Virtual ZD421-203dpi` (`virtual:zd421-203`). The form adds more (name, density, label size with presets such as 4 × 6 in or 100 × 150 mm). They are stored in `~/.local/state/zebra-print-bridge/virtual-printers.json`. After adding one, reload the web app to see it in its printer list.
 - **Simulated status:** the buttons (Ready, Media out, Ribbon out, Head open, Paused, Calibrate) and the panel with every flag change what the virtual printer answers to `~HQES`, using the same flags the web app decodes (`zplHQES` in `resources/js/utils/constants.js`). A virtual printer answers instantly; a real one takes up to `read_timeout` when it does not reply.
 - Virtual printers are listed **after** the real ones, so a connected real printer stays the default.
@@ -169,6 +171,7 @@ python3 -m unittest -v
 ```
 
 - `tests/test_server.py`: Browser Print endpoints, CORS/PNA, timeouts and errors against a simulated printer.
+- `tests/test_status.py`: live status of every kind of printer, coexistence with the web app's `sendThenRead`, test label.
 - `tests/test_settings.py`: website approval, network printers and default printer from the viewer, connection test, stopping the service.
 - `tests/test_viewer.py`: virtual printers, job log, resending, encoding warnings, preview options and Labelary linter (against a fake Labelary) and viewer security.
 - `tests/test_zpl.py`: `~HQES` flags, label and graphics parsing, encoding lint.

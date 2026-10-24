@@ -68,13 +68,7 @@ function renderPrinters() {
   $('#printer-count').textContent = state.printers.length;
   $('#printers').innerHTML = state.printers.map((p) => {
     const kind = p.virtual ? t('printers.virtual') : t(CONNECTION[p.connection] || p.connection);
-    let status = '';
-    if (p.virtual) {
-      const active = [...p.errors.map((f) => state.flags.errors[f]), ...p.warnings.map((f) => state.flags.warnings[f])];
-      status = p.errors.length ? `<span class="badge b-err">${esc(active.join(', '))}</span>`
-        : p.warnings.length ? `<span class="badge b-warn">${esc(active.join(', '))}</span>`
-        : `<span class="badge b-ok">${t('printers.ready')}</span>`;
-    }
+    const live = liveStatus(p);
     const flagBoxes = (group, label) => Object.entries(state.flags[group]).map(([k, v]) =>
       `<label class="check"><input type="checkbox" data-flag="${group}" data-key="${k}" data-uid="${esc(p.uid)}" ${p[group].includes(k) ? 'checked' : ''}> ${label}: ${esc(v)}</label>`).join('');
     const virtualControls = !p.virtual ? '' : `
@@ -85,8 +79,13 @@ function renderPrinters() {
         <button class="danger" data-delete="${esc(p.uid)}">${t('printers.delete')}</button>
       </details>`;
     return `<div class="printer">
-      <div class="name">${esc(p.name)} <span class="badge">${esc(kind)}</span> ${status}</div>
-      <div class="uid mono">${esc(p.uid)}</div>${virtualControls}</div>`;
+      <div class="name">${esc(p.name)} <span class="badge">${esc(kind)}</span> ${live.badge}</div>
+      <div class="uid mono">${esc(p.uid)}</div>
+      ${live.details ? `<div class="live muted">${live.details}</div>` : ''}
+      <div class="printer-actions">
+        <button data-refresh="${esc(p.uid)}" title="${esc(t('printers.refresh'))}" ${statusChecking.has(p.uid) ? 'disabled' : ''}>↻</button>
+        <button data-test-label="${esc(p.uid)}">${t('printers.test_label')}</button>
+      </div>${virtualControls}</div>`;
   }).join('') || `<div class="empty">${t('printers.none')}</div>`;
 
   const filter = $('#filter-printer'), current = filter.value;
@@ -94,12 +93,70 @@ function renderPrinters() {
   filter.value = current;
 }
 
+// --- live printer status (~HI + ~HQES, queried by the viewer, not recorded as jobs) ---
+
+const STATUS_INTERVAL = 60000;
+const statusChecking = new Set();
+let statusCheckedAt = 0;
+
+function relativeTime(seconds) {
+  const rtf = new Intl.RelativeTimeFormat(currentLang, { numeric: 'auto' });
+  return seconds < 60 ? rtf.format(-Math.round(seconds), 'second') : rtf.format(-Math.round(seconds / 60), 'minute');
+}
+
+function liveStatus(p) {
+  const s = state.printer_status?.[p.uid];
+  const names = (keys, group) => keys.map((k) => state.flags[group][k] || k).join(', ');
+  if (statusChecking.has(p.uid) && !s) return { badge: `<span class="badge">${t('status.checking')}</span>`, details: '' };
+  if (!s) return { badge: '', details: '' };
+  const badge = {
+    ready: `<span class="badge b-ok">${t('printers.ready')}</span>`,
+    error: `<span class="badge b-err">${esc(names(s.errors || [], 'errors'))}</span>`,
+    warning: `<span class="badge b-warn">${esc(names(s.warnings || [], 'warnings'))}</span>`,
+    offline: `<span class="badge b-err" title="${esc(s.error || '')}">${t('status.offline')}</span>`,
+    unsupported: `<span class="badge">${t('status.unsupported')}</span>`,
+    no_response: `<span class="badge">${t('status.no_response')}</span>`,
+  }[s.state] || '';
+  const extra = s.state === 'error' && s.warnings?.length ? ` <span class="badge b-warn">${esc(names(s.warnings, 'warnings'))}</span>` : '';
+  const facts = [s.model, s.firmware, s.dpi && `${s.dpi} dpi`].filter(Boolean).map(esc);
+  if (s.state === 'offline' && s.error) facts.push(`<span class="error-text">${esc(s.error)}</span>`);
+  const when = statusChecking.has(p.uid) ? t('status.checking') : t('status.checked', { when: relativeTime(Date.now() / 1000 - s.checked) });
+  return { badge: badge + extra, details: [...facts, when].join(' · ') };
+}
+
+async function refreshStatus(uids) {
+  const targets = uids || state.printers.map((p) => p.uid);
+  targets.forEach((uid) => statusChecking.add(uid));
+  if (!uids) statusCheckedAt = Date.now();
+  renderPrinters();
+  try {
+    state.printer_status = await api('/ui/api/printers/status', uids ? { uids } : {});
+  } catch (err) { toast(err.message); }
+  targets.forEach((uid) => statusChecking.delete(uid));
+  renderPrinters();
+}
+
+function statusTick() {
+  if (state && document.visibilityState === 'visible' && Date.now() - statusCheckedAt >= STATUS_INTERVAL) refreshStatus();
+}
+
 $('#printers').addEventListener('click', async (e) => {
-  const { preset, delete: del, uid } = e.target.dataset;
+  const { preset, delete: del, uid, refresh: refreshUid, testLabel } = e.target.dataset;
+  if (refreshUid) return refreshStatus([refreshUid]);
+  if (testLabel) {
+    try {
+      const { job_id: jobId } = await api('/ui/api/printers/test-label', { uid: testLabel });
+      toast(t('printers.test_label_sent'));
+      await refresh(true);
+      selectJob(jobId);
+    } catch (err) { toast(err.message); }
+    return;
+  }
   try {
     if (preset !== undefined) {
       const [, errors, warnings] = STATUS_PRESETS[preset];
       await api('/ui/api/virtual/update', { uid, errors, warnings });
+      refreshStatus([uid]);
     } else if (del && confirm(t('printers.delete_confirm'))) {
       await api('/ui/api/virtual/delete', { uid: del });
     } else return;
@@ -111,7 +168,7 @@ $('#printers').addEventListener('change', async (e) => {
   if (!flag) return;
   const selected = new Set(state.printers.find((p) => p.uid === uid)[flag]);
   e.target.checked ? selected.add(key) : selected.delete(key);
-  try { await api('/ui/api/virtual/update', { uid, [flag]: [...selected] }); refresh(true); }
+  try { await api('/ui/api/virtual/update', { uid, [flag]: [...selected] }); refresh(true); refreshStatus([uid]); }
   catch (err) { toast(err.message); }
 });
 
@@ -513,5 +570,7 @@ window.addEventListener('hashchange', selectFromHash);
 setupSettings();
 
 renderAll();
-refresh(true).then(() => { renderDetail(); selectFromHash(); });
+refresh(true).then(() => { renderDetail(); selectFromHash(); statusTick(); });
 setInterval(refresh, 1500);
+setInterval(statusTick, 5000);
+document.addEventListener('visibilitychange', statusTick);

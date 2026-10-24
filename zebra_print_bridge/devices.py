@@ -111,23 +111,47 @@ class Channel:
         self.transport = info.make_transport()
         self.lock = threading.Lock()
         self._timer = None
+        # The web app's sendThenRead is two requests (write, then read). Until the read
+        # arrives, the viewer must not query the printer: its drain would discard the answer.
+        self._web_write_at = None
 
-    def write(self, data: bytes) -> None:
+    def write(self, data: bytes, expect_read: bool = True) -> None:
         with self.lock:
             self._cancel_timer()
             try:
                 self.transport.write(data, self.config["write_timeout"])
             finally:
+                self._web_write_at = time.monotonic() if expect_read else None
                 self._arm_close()
 
     def read(self) -> bytes:
         """Long-poll: wait for the response up to read_timeout, cut it after read_idle of silence."""
         with self.lock:
             self._cancel_timer()
+            self._web_write_at = None
             try:
                 return self._read_response()
             finally:
                 self._arm_close()
+
+    def transact(self, data: bytes, grace: float = 3.0) -> bytes:
+        """Write and read as one operation, for the viewer's own queries.
+
+        Waits up to `grace` seconds while the web app has a write whose response it has not
+        read yet, so the viewer never steals that response.
+        """
+        deadline = time.monotonic() + grace
+        while True:
+            with self.lock:
+                pending = self._web_write_at is not None and time.monotonic() - self._web_write_at < grace
+                if not pending or time.monotonic() >= deadline:
+                    self._cancel_timer()
+                    try:
+                        self.transport.write(data, self.config["write_timeout"])
+                        return self._read_response()
+                    finally:
+                        self._arm_close()
+            time.sleep(0.1)
 
     def _read_response(self) -> bytes:
         deadline = time.monotonic() + self.config["read_timeout"]

@@ -12,6 +12,8 @@ class Transport:
 
     # False when the response is already available once the write returns (no need to wait).
     responds_later = True
+    # False when the printer's answers cannot be read at all (CUPS).
+    readable = True
 
     def write(self, data: bytes, timeout: float) -> None:
         raise NotImplementedError
@@ -137,6 +139,8 @@ class UsbTransport(Transport):
 
 class CupsTransport(Transport):
     """Send to a CUPS queue in raw mode. CUPS does not return the printer's response."""
+
+    readable = False
 
     def __init__(self, queue: str):
         self.queue = queue

@@ -6,12 +6,15 @@ Usage: python3 -m zebra_print_bridge.mock_printer --host 127.0.0.2 --port 9100
 
 import argparse
 import logging
+import re
 import socketserver
 import threading
 
 from .zpl import ERROR_FLAGS, hqes_response
 
 log = logging.getLogger(__name__)
+
+QUERY_RE = re.compile(rb"~HQES|~HI")
 
 
 class MockPrinter(socketserver.ThreadingTCPServer):
@@ -22,6 +25,7 @@ class MockPrinter(socketserver.ThreadingTCPServer):
         self.received = bytearray()
         self.received_event = threading.Condition()
         self.errors = []  # ERROR_FLAGS keys reported by ~HQES
+        self.model = "MOCK-ZD421-203dpi"
         super().__init__((host, port), _Handler)
 
     @property
@@ -54,10 +58,14 @@ class _Handler(socketserver.BaseRequestHandler):
                 self.server.received_event.notify_all()
             log.info("received %d bytes: %r", len(chunk), chunk[:80])
             pending += chunk
-            while b"~HQES" in pending:
-                pending = pending.split(b"~HQES", 1)[1]
-                self.request.sendall(hqes_response(self.server.errors))
-            pending = pending[-8:]
+            matches = list(QUERY_RE.finditer(pending))
+            for match in matches:
+                if match.group(0) == b"~HI":
+                    self.request.sendall(f"\x02{self.server.model},V0.0.0,8,8192KB\x03\r\n".encode())
+                else:
+                    self.request.sendall(hqes_response(self.server.errors))
+            # Keep a short tail in case a command is split across two packets.
+            pending = (pending[matches[-1].end():] if matches else pending)[-8:]
 
 
 def main():
