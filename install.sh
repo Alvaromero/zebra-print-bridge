@@ -21,7 +21,7 @@ sudo rm -rf "$PREFIX"
 sudo install -d "$PREFIX/zebra_print_bridge/static"
 sudo install -m 644 "$SRC"/zebra_print_bridge/*.py "$PREFIX/zebra_print_bridge/"
 sudo install -m 644 "$SRC"/zebra_print_bridge/static/* "$PREFIX/zebra_print_bridge/static/"
-sudo install -m 644 "$SRC/README.md" "$SRC/config.example.json" "$PREFIX/"
+sudo install -m 644 "$SRC/README.md" "$SRC/ROADMAP.md" "$SRC/config.example.json" "$PREFIX/"
 sudo tee /usr/local/bin/zebra-print-bridge >/dev/null <<EOF
 #!/bin/sh
 PYTHONPATH=$PREFIX exec /usr/bin/python3 -m zebra_print_bridge "\$@"

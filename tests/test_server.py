@@ -98,13 +98,11 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(headers["Access-Control-Allow-Origin"], ORIGIN)
         self.assertIn("POST", headers["Access-Control-Allow-Methods"])
 
-    def test_disallowed_origin_rejected(self):
-        status, headers, _ = self.bridge.request("GET", "available", origin="https://evil.example.com")
+    def test_unknown_origin_cannot_print(self):
+        status, _, body = self.bridge.request("POST", "write", {"device": DEVICE, "data": "x"},
+                                              origin="https://unknown.example.com")
         self.assertEqual(status, 403)
-        self.assertIsNone(headers["Access-Control-Allow-Origin"])
-        status, _, _ = self.bridge.request("POST", "write", {"device": DEVICE, "data": "x"},
-                                           origin="https://evil.example.com")
-        self.assertEqual(status, 403)
+        self.assertIn("not authorized", body)
         self.assertFalse(self.bridge.printer.wait_for(b"x", timeout=0.2))
 
     def test_qa_subdomain_allowed(self):

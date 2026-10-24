@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from .settings import SettingsStore, network_uid
 from .transports import CupsTransport, NetworkTransport, Transport, UsbTransport
 from .virtual import VirtualPrinterStore, VirtualTransport
 
@@ -71,13 +72,14 @@ def discover_usb(sysfs_root="/sys", dev_root="/dev") -> list:
     return printers
 
 
-def configured_network(config) -> list:
+def configured_network(config, extra=()) -> list:
+    """Network printers from config.json plus the ones added in the viewer (`extra`)."""
     printers = []
-    for item in config["network_printers"]:
+    for item in [*config["network_printers"], *extra]:
         host = item["host"]
         port = int(item.get("port", 9100))
         printers.append(PrinterInfo(
-            uid=item.get("uid") or (host if port == 9100 else f"{host}:{port}"),
+            uid=network_uid(item),
             name=item.get("name") or f"Zebra {host}",
             connection="network",
             key=("network", host, port),
@@ -173,10 +175,11 @@ class Channel:
 
 
 class Registry:
-    def __init__(self, config: dict, discover_usb_fn=discover_usb, virtual_store=None):
+    def __init__(self, config: dict, discover_usb_fn=discover_usb, virtual_store=None, settings=None):
         self.config = config
         self._discover_usb = discover_usb_fn
         self.virtual = virtual_store or VirtualPrinterStore(config.get("virtual_printers_file"))
+        self.settings = settings or SettingsStore(config.get("settings_file"))
         self._channels = {}
         self._order = []
         self._lock = threading.Lock()
@@ -188,7 +191,7 @@ class Registry:
                 printers += self._discover_usb()
             except OSError as exc:
                 log.warning("Could not list USB printers: %s", exc)
-        printers += configured_network(self.config)
+        printers += configured_network(self.config, self.settings.network_printers())
         printers += configured_cups(self.config)
         # Last, so a real printer is the default whenever there is one.
         if self.config["virtual_printers"]:
@@ -239,10 +242,9 @@ class Registry:
 
     def default(self):
         printers = self.refresh()
-        wanted = self.config["default_printer"]
-        if wanted:
+        for wanted in (self.settings.default_printer(), self.config["default_printer"]):
             for info in printers:
-                if info.uid == wanted:
+                if wanted and info.uid == wanted:
                     return info
         return printers[0] if printers else None
 

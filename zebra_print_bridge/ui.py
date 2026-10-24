@@ -8,7 +8,9 @@ import hashlib
 import json
 import logging
 import re
+import os
 import threading
+import time
 import urllib.error
 import urllib.request
 from collections import OrderedDict
@@ -16,6 +18,8 @@ from pathlib import Path
 
 from . import __version__, zpl
 from .devices import PrinterNotFound
+from .settings import SettingsError, network_uid
+from .transports import NetworkTransport
 from .virtual import DPI_VALUES
 
 log = logging.getLogger(__name__)
@@ -26,6 +30,7 @@ DPMM = {152: 6, 203: 8, 300: 12, 600: 24}
 ROTATIONS = (0, 90, 180, 270)
 LABELARY_MAX_BODY = 1024 * 1024
 LABELARY_MAX_LABELS = 50
+STARTED = time.time()
 
 
 class UiError(Exception):
@@ -66,6 +71,8 @@ def handle(h, path: str):
             raise UiError(405, "Method not allowed")
     except PrinterNotFound as exc:
         h._send(404, f"Printer not found: {exc}", cors=False)
+    except SettingsError as exc:
+        h._send(400, str(exc), cors=False)
     except Exception as exc:
         status = getattr(exc, "status", 500)
         message = getattr(exc, "message", None) or str(exc) or exc.__class__.__name__
@@ -117,6 +124,9 @@ def _get(h, path):
     if path == "/ui/api/state":
         _send_json(h, _state(h.server))
         return
+    if path == "/ui/api/settings":
+        _send_json(h, _settings(h.server))
+        return
     match = re.fullmatch(r"/ui/api/jobs/(\d+)(/zpl)?", path)
     if match:
         job = _job(h.server, match.group(1))
@@ -156,11 +166,72 @@ def _state(server) -> dict:
         "labelary": bool(server.config["labelary_url"]),
         "printers": [dict(info.to_device(), **_printer_settings(server, info.uid)) for info in printers],
         "jobs": server.jobs.summaries(),
+        "pending_origins": server.origins.pending(),
         "flags": {
             "errors": {key: value[0] for key, value in zpl.ERROR_FLAGS.items()},
             "warnings": {key: value[0] for key, value in zpl.WARNING_FLAGS.items()},
         },
     }
+
+
+def _settings(server) -> dict:
+    config, settings = server.config, server.registry.settings
+    snapshot = settings.snapshot()
+    default = server.registry.default()
+    return {
+        "network_printers": {
+            "config": [dict(p, uid=network_uid(p)) for p in config["network_printers"]],
+            "user": [dict(p, uid=network_uid(p)) for p in snapshot["network_printers"]],
+        },
+        "default_printer": {"config": config["default_printer"], "user": snapshot["default_printer"],
+                            "effective": default.uid if default else None},
+        "origins": {
+            "approval": config["origin_approval"],
+            "patterns": config["allowed_origins"],
+            "allowed": snapshot["origins"]["allowed"],
+            "denied": snapshot["origins"]["denied"],
+            "pending": server.origins.pending(),
+        },
+        "service": {
+            "version": __version__,
+            "pid": os.getpid(),
+            "started": STARTED,
+            "address": f"http://{config['host']}:{server.server_address[1]}/",
+            "config_file": config["_config_file"],
+            "settings_file": str(settings.path),
+            "virtual_printers_file": str(server.registry.virtual.path),
+            "systemd": _under_systemd(),
+        },
+    }
+
+
+def _under_systemd() -> bool:
+    """True when the parent process is systemd (the --user service), not a terminal."""
+    try:
+        return Path(f"/proc/{os.getppid()}/comm").read_text().strip() == "systemd"
+    except OSError:
+        return False
+
+
+def _test_network_printer(server, host: str, port: int) -> dict:
+    """Connect, ask ~HQES and report how long it took. Nothing is printed."""
+    transport = NetworkTransport(host, port, server.config["connect_timeout"])
+    start = time.monotonic()
+    try:
+        transport.write(b"~HQES", timeout=5)
+        deadline = time.monotonic() + server.config["read_timeout"]
+        response = b""
+        while time.monotonic() < deadline and b"\x03" not in response:
+            chunk = transport.read(deadline - time.monotonic())
+            if not chunk:
+                break
+            response += chunk
+    except OSError as exc:
+        return {"ok": False, "error": str(exc) or exc.__class__.__name__}
+    finally:
+        transport.close()
+    return {"ok": True, "ms": round((time.monotonic() - start) * 1000),
+            "response": response.decode("utf-8", errors="replace")}
 
 
 def _label_list(text: str, dpi: int) -> list:
@@ -191,6 +262,53 @@ def _post(h, path, body):
             "warnings": zpl.lint(text, server.jobs.charset(uid) if uid else None, server.config["encoding"]),
             "label_list": _label_list(text, settings["dpi"]),
         })
+    elif path == "/ui/api/shutdown":
+        _send_json(h, {"ok": True})
+        log.info("Stop requested from the viewer")
+        server.stopped_from_viewer = True
+        # shutdown() waits for serve_forever, so it cannot run on this request's thread.
+        threading.Thread(target=server.shutdown, daemon=True).start()
+    elif path == "/ui/api/settings/origin":
+        server.origins.resolve(str(body.get("origin", "")), str(body.get("action", "")))
+        server.jobs.bump()
+        _send_json(h, _settings(server))
+    elif path == "/ui/api/settings/network/add":
+        try:
+            port = int(body.get("port") or 9100)
+        except (TypeError, ValueError):
+            raise UiError(400, "Invalid port")
+        candidate = {"host": str(body.get("host", "")).strip(), "port": port, "uid": str(body.get("uid", "")).strip()}
+        if candidate["host"] and network_uid(candidate) in {p.uid for p in server.registry.available()}:
+            raise UiError(409, f"A printer with uid {network_uid(candidate)} already exists")
+        server.registry.settings.add_network_printer(candidate["host"], port, str(body.get("name", "")),
+                                                     candidate["uid"])
+        server.registry.refresh()
+        server.jobs.bump()
+        _send_json(h, _settings(server), status=201)
+    elif path == "/ui/api/settings/network/remove":
+        try:
+            server.registry.settings.remove_network_printer(str(body.get("uid", "")))
+        except KeyError:
+            raise UiError(404, "Only printers added in the viewer can be removed here")
+        server.registry.refresh()
+        server.jobs.bump()
+        _send_json(h, _settings(server))
+    elif path == "/ui/api/settings/network/test":
+        try:
+            port = int(body.get("port") or 9100)
+        except (TypeError, ValueError):
+            raise UiError(400, "Invalid port")
+        host = str(body.get("host", "")).strip()
+        if not host:
+            raise UiError(400, "host is required")
+        _send_json(h, _test_network_printer(server, host, port))
+    elif path == "/ui/api/settings/default":
+        uid = body.get("uid") or None
+        if uid and uid not in {p.uid for p in server.registry.available()}:
+            raise UiError(404, f"Printer not found: {uid}")
+        server.registry.settings.set_default_printer(uid)
+        server.jobs.bump()
+        _send_json(h, _settings(server))
     elif path == "/ui/api/jobs/clear":
         server.jobs.clear()
         _send_json(h, {"ok": True})

@@ -9,7 +9,9 @@ DEFAULTS = {
     # Listen on loopback only: anyone on the network could otherwise print or read the printers.
     "host": "127.0.0.1",
     "port": 9100,
-    # fnmatch patterns matched against the Origin header. Empty list = any origin.
+    # Websites pre-approved to use the printers (fnmatch patterns against the Origin header).
+    # Any other website has to be approved by the user in the viewer, like Browser Print's
+    # "accept host" prompt.
     "allowed_origins": [
         "https://recommercebrands.com",
         "https://*.recommercebrands.com",
@@ -18,19 +20,26 @@ DEFAULTS = {
         "http://localhost",
         "http://localhost:*",
     ],
-    # uid of the default printer. null = the first one detected.
+    # false = no approval prompt: only allowed_origins, and an empty list allows any website.
+    "origin_approval": True,
+    # Desktop notification (notify-send) when a new website asks to use the printers.
+    "desktop_notifications": True,
+    # uid of the default printer. null = the first one detected. The viewer's setting wins.
     "default_printer": None,
     "usb": {"enabled": True},
     # Virtual printers (managed from the viewer at http://127.0.0.1:9100/ui).
     "virtual_printers": True,
     # null = ~/.local/state/zebra-print-bridge/virtual-printers.json
     "virtual_printers_file": None,
+    # What the user changes in the viewer. null = ~/.local/state/zebra-print-bridge/settings.json
+    "settings_file": None,
     # Jobs kept in memory by the viewer.
     "max_jobs": 300,
     # ZPL preview service. The viewer only calls it after the user turns preview on,
     # because it sends the ZPL off the machine. null disables it completely.
     "labelary_url": "https://api.labelary.com",
     # [{"host": "10.0.0.50", "port": 9100, "name": "Zebra Dock 1", "uid": "optional"}]
+    # The viewer can add more; they are stored in settings_file.
     "network_printers": [],
     # Raw CUPS queues (write only, no status reads).
     "cups_queues": [],
@@ -74,4 +83,5 @@ def load_config(path=None, overrides=None) -> dict:
             config = _merge(config, json.load(fh))
     if overrides:
         config = _merge(config, overrides)
+    config["_config_file"] = str(path)
     return config

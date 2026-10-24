@@ -2,13 +2,13 @@
 
 import json
 import logging
-from fnmatch import fnmatchcase
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 from . import __version__, ui
 from .devices import PrinterNotFound, Registry
 from .jobs import JobLog
+from .settings import OriginPolicy
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +31,10 @@ class BridgeServer(ThreadingHTTPServer):
         self.registry = registry or Registry(config)
         self.jobs = JobLog(config["max_jobs"], config["encoding"])
         self.preview_cache = ui.PreviewCache()
+        self.stopped_from_viewer = False
         super().__init__((config["host"], config["port"]), Handler)
+        self.viewer_url = f"http://127.0.0.1:{self.server_address[1]}/ui"
+        self.origins = OriginPolicy(config, self.registry.settings, self.viewer_url)
 
     def server_close(self):
         super().server_close()
@@ -46,13 +49,6 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         log.debug("%s %s", self.address_string(), fmt % args)
-
-    def _origin_allowed(self) -> bool:
-        origin = self.headers.get("Origin")
-        patterns = self.server.config["allowed_origins"]
-        if not origin or not patterns:
-            return True
-        return any(fnmatchcase(origin, pattern) for pattern in patterns)
 
     def _cors_headers(self):
         origin = self.headers.get("Origin")
@@ -95,10 +91,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/ui" or path.startswith("/ui/"):
             ui.handle(self, path)
             return
-        if not self._origin_allowed():
-            origin = self.headers.get("Origin")
-            log.warning("Origin rejected: %s %s", origin, path)
-            self._send(403, f"Origin not allowed: {origin}", cors=False)
+        origin = self.headers.get("Origin")
+        decision = self.server.origins.decide(origin)
+        if decision != "allowed":
+            log.warning("Website %s: %s %s", decision, origin, path)
+            # With CORS headers, so the web app can show how to approve the website.
+            self._send(403, self.server.origins.message(origin, decision))
             return
         handler = routes.get(path)
         try:
@@ -119,7 +117,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         path = urlsplit(self.path).path
-        if not self._origin_allowed() or path.startswith("/ui"):
+        # A pending website passes the preflight so its real request can return the
+        # "approve this website" message; a blocked one does not.
+        if path.startswith("/ui") or self.server.origins.decide(self.headers.get("Origin")) == "denied":
             self._send(403, "Origin not allowed", cors=False)
             return
         self.send_response(204)

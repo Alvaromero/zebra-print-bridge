@@ -3,7 +3,8 @@
 A replacement for **Zebra Browser Print** on Ubuntu (22.04 or newer), aimed at **development**. It is a local service that speaks the same HTTP protocol on `http://127.0.0.1:9100/`, so the web app (my.recommercebrands.com) prints **without frontend changes**, using the official, unmodified `BrowserPrint-3.1.250.min.js` library.
 
 - **Virtual printers** show up in the web app like real ones and answer `~HQES` with the status you pick (ready, media out, head open, paused…). No hardware needed.
-- **Viewer** at `http://127.0.0.1:9100/ui`, in English and Spanish: every job the web app sends (to virtual and real printers), the printer's response, **encoding warnings**, a **ZPL editor** and a **label preview** with the same controls as the [Labelary viewer](https://labelary.com/viewer.html) (density, size in in/cm/mm, rotation, quality, PNG/PDF export).
+- **Website approval** like Browser Print: a new website has to be allowed before it can print (desktop notification + Allow/Block in the viewer).
+- **Viewer** at `http://127.0.0.1:9100/ui`, in English and Spanish, with a **Settings** page (network printers, default printer, authorized websites, stop the service): every job the web app sends (to virtual and real printers), the printer's response, **encoding warnings**, a **ZPL editor** and a **label preview** with the same controls as the [Labelary viewer](https://labelary.com/viewer.html) (density, size in in/cm/mm, rotation, quality, PNG/PDF export).
 - Real printers too: **USB** (`usblp` driver, `/dev/usb/lpX`), **network** (TCP 9100) and, optionally, raw **CUPS** queues (write only).
 - Python 3.10+ standard library only: nothing to `pip install`.
 
@@ -31,17 +32,40 @@ Uninstall: `./uninstall.sh` (keeps the configuration and the virtual printers).
 ```bash
 zebra-print-bridge --list                          # detected printers (* = default)
 systemctl --user status zebra-print-bridge         # service status
-systemctl --user restart zebra-print-bridge        # after changing the configuration
+systemctl --user restart zebra-print-bridge        # after changing config.json
 journalctl --user -u zebra-print-bridge -f         # logs
 ```
+
+### Stopping and starting
+
+- **From the viewer:** Settings → Service → **Stop service**. It frees the port and the printers and stays stopped until you start it again or log in again (systemd only restarts it after a crash). The page then shows the command to start it and reconnects by itself.
+- **From a terminal:**
+
+  ```bash
+  systemctl --user stop zebra-print-bridge     # until the next login
+  systemctl --user start zebra-print-bridge
+  systemctl --user mask zebra-print-bridge     # never start it at login (unmask to undo)
+  ```
+
+  `systemctl --user disable` is not enough, because the installer enables the service for every user (`--global`).
 
 The first time the web app calls the service, **Chrome** may ask for permission to "access devices on your local network". **Allow** it; Chrome remembers it for that site. On managed machines it can be granted by Chrome policy.
 
 In the web app, each user has to **pick their printer once**: Linux uids do not match the ones Browser Print stored on Windows.
 
+## Authorized websites
+
+Like Zebra Browser Print, a website must be approved before it can use the printers:
+
+1. The first time a new website calls the service, its request is held as **pending**. The web app receives a readable error (`This website (...) is not authorized to use the printers yet. Approve it in Zebra Print Bridge: http://127.0.0.1:9100/ui`), and a **desktop notification** appears.
+2. The viewer shows a banner with **Allow** / **Block**. After allowing it, reload the website.
+3. Settings → Authorized websites lists pending, allowed and blocked websites; they can be removed or unblocked there.
+
+Websites matching `allowed_origins` in `config.json` are pre-approved (by default the organization's domains and `localhost`). Requests without an `Origin` header (curl, local scripts) are always accepted. Set `"origin_approval": false` to turn the prompt off and accept only `allowed_origins`.
+
 ## Viewer
 
-Open `http://127.0.0.1:9100/ui` (`/` redirects there). The language (English/Spanish) follows the browser and can be changed at the top, as can the units (in, cm, mm).
+Open `http://127.0.0.1:9100/ui` (`/` redirects there). It has two tabs, **Jobs** and **Settings** (`#settings` in the URL). The language (English/Spanish) follows the browser and can be changed at the top, as can the units (in, cm, mm).
 
 ### Printers and virtual printers
 
@@ -77,15 +101,30 @@ Every job (and the editor while you type) is checked for the problems that make 
 
 The viewer only answers on `127.0.0.1`/`localhost` and rejects other origins: the web app and any other site can print, but cannot read the job history or change printers.
 
+### Settings page
+
+- **Authorized websites:** see above.
+- **Network printers:** add (IP/host, port, optional name and uid), remove and **test** them. The test connects and sends `~HQES` (nothing is printed) and shows the response time and status. Printers from `config.json` are listed but can only be changed in that file.
+- **Default printer:** the one the web app gets from `getDefaultDevice`; "Automatic" uses `default_printer` from `config.json` or the first printer detected.
+- **Service:** version, address, uptime, the files in use and the **Stop service** button.
+
 ## Configuration
 
-`~/.config/zebra-print-bridge/config.json` (only what you change; see `config.example.json`):
+There are two layers:
+
+- `~/.config/zebra-print-bridge/config.json`: the base configuration, edited by hand (and, later, distributable by an organization). The service never rewrites it.
+- `~/.local/state/zebra-print-bridge/settings.json`: what each user changes in the viewer (network printers, default printer, allowed/blocked websites), applied on top of `config.json`. Virtual printers live next to it in `virtual-printers.json`.
+
+`config.json` keys (only what you change; see `config.example.json`):
 
 | Key | Default | Purpose |
 |---|---|---|
-| `network_printers` | `[]` | `[{"host": "192.168.1.50", "port": 9100, "name": "Zebra Dock 1", "uid": "optional"}]` |
-| `default_printer` | `null` | uid of the default printer; `null` = the first one detected |
-| `allowed_origins` | `*.recommercebrands.com` and `localhost` | `fnmatch` patterns for the `Origin` header. `[]` = any origin |
+| `network_printers` | `[]` | `[{"host": "192.168.1.50", "port": 9100, "name": "Zebra Dock 1", "uid": "optional"}]`; the viewer can add more |
+| `default_printer` | `null` | uid of the default printer; `null` = the first one detected. The viewer's choice wins |
+| `allowed_origins` | `*.recommercebrands.com` and `localhost` | Pre-approved websites (`fnmatch` patterns for the `Origin` header) |
+| `origin_approval` | `true` | Ask before a new website can use the printers. `false` = only `allowed_origins` (and `[]` allows any website) |
+| `desktop_notifications` | `true` | Notify (`notify-send`) when a website asks for approval |
+| `settings_file` | `null` | Where the viewer's settings are stored (default `~/.local/state/zebra-print-bridge/settings.json`) |
 | `overrides` | `{}` | Rename a detected printer or pin its uid: `{"usb:D4J123": {"name": "Zebra Desk 3", "uid": "desk-3"}}` |
 | `cups_queues` | `[]` | Raw CUPS queues. Print only: no status |
 | `usb.enabled` | `true` | Discover USB printers |
@@ -130,6 +169,7 @@ python3 -m unittest -v
 ```
 
 - `tests/test_server.py`: Browser Print endpoints, CORS/PNA, timeouts and errors against a simulated printer.
+- `tests/test_settings.py`: website approval, network printers and default printer from the viewer, connection test, stopping the service.
 - `tests/test_viewer.py`: virtual printers, job log, resending, encoding warnings, preview options and Labelary linter (against a fake Labelary) and viewer security.
 - `tests/test_zpl.py`: `~HQES` flags, label and graphics parsing, encoding lint.
 - `tests/test_devices.py`: USB discovery with a fake sysfs and the USB transport over a pty.
@@ -155,4 +195,4 @@ Translations live in `zebra_print_bridge/static/i18n.js`: copy the `en` block, t
 - **`sendThenRead` from two tabs at once:** each operation is serialized per printer, but another tab's write can slip in between the first tab's write and read.
 - **Web app status decoder:** `decodePrinterStatus` in `print-component.vue` compares each hex digit with a single value, so two errors in the same digit (head open + media out = `5`) mark the printer as not ready without a reason. The viewer's presets simulate one error at a time; use the flags panel to reproduce the combined case.
 
-`docs/PROMPT.es.md` is the original design brief (in Spanish).
+See [ROADMAP.md](ROADMAP.md) for what is planned next. `docs/PROMPT.es.md` is the original design brief (in Spanish).

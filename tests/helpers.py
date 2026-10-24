@@ -30,6 +30,8 @@ class BridgeFixture:
             "connection_linger": 0.5,
             "virtual_printers": False,
             "virtual_printers_file": f"{self.tmp.name}/virtual-printers.json",
+            "settings_file": f"{self.tmp.name}/settings.json",
+            "desktop_notifications": False,
         }
         overrides.update(config_overrides)
         config = load_config("/nonexistent/config.json", overrides)

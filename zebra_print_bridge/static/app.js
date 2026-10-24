@@ -1,6 +1,6 @@
 // Zebra Print Bridge viewer. Plain JS, no build step. Texts come from i18n.js (t()).
 
-const CONNECTION = { usb: 'USB', network: 'Network', driver: 'CUPS', bluetooth: 'BT' };
+const CONNECTION = { usb: 'USB', network: 'printers.network', driver: 'CUPS', bluetooth: 'Bluetooth' };
 const STATUS_PRESETS = [
   ['preset.ready', [], []], ['preset.media_out', ['media_out'], []], ['preset.ribbon_out', ['ribbon_out'], []],
   ['preset.head_open', ['head_open'], []], ['preset.paused', ['paused'], []],
@@ -67,7 +67,7 @@ function renderPrinters() {
   const open = new Set([...document.querySelectorAll('#printers details[open]')].map((d) => d.dataset.uid));
   $('#printer-count').textContent = state.printers.length;
   $('#printers').innerHTML = state.printers.map((p) => {
-    const kind = p.virtual ? t('printers.virtual') : (CONNECTION[p.connection] || p.connection);
+    const kind = p.virtual ? t('printers.virtual') : t(CONNECTION[p.connection] || p.connection);
     let status = '';
     if (p.virtual) {
       const active = [...p.errors.map((f) => state.flags.errors[f]), ...p.warnings.map((f) => state.flags.warnings[f])];
@@ -458,15 +458,18 @@ async function refresh(force = false) {
     state = next;
     $('#version').textContent = 'v' + state.version;
     $('#labelary-toggle').hidden = !state.labelary;
+    onStateUpdate(true);
     if (!changed) return;
     rev = state.rev;
     renderPrinters();
     renderJobs();
+    if (view === 'settings') loadSettings();
     if (mode === 'job' && detail && state.jobs.find((j) => j.id === selectedId)?.response !== detail.response) {
       selectJob(selectedId);
     }
   } catch {
     $('#version').textContent = t('app.offline');
+    onStateUpdate(false);
   }
 }
 
@@ -477,12 +480,15 @@ function renderAll() {
   renderPrinters();
   renderJobs();
   renderDetail();
+  renderOriginBanner();
+  if (view === 'settings') renderSettings();
 }
 
 function selectFromHash() {
   const job = /#job=(\d+)/.exec(location.hash);
   if (job && +job[1] !== selectedId) selectJob(+job[1]);
   else if (location.hash === '#editor' && mode !== 'editor') openEditor();
+  else if (location.hash === '#settings') setView('settings');
 }
 
 $('#lang').innerHTML = Object.entries(LANGUAGES).map(([code, name]) => `<option value="${code}">${name}</option>`).join('');
@@ -504,6 +510,7 @@ $('#show-status').checked = store.get('showStatus', false);
 $('#labelary').checked = store.get('labelary', false);
 $('#labelary').addEventListener('change', () => { store.set('labelary', $('#labelary').checked); renderDetail(); });
 window.addEventListener('hashchange', selectFromHash);
+setupSettings();
 
 renderAll();
 refresh(true).then(() => { renderDetail(); selectFromHash(); });

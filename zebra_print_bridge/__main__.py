@@ -56,6 +56,10 @@ def main(argv=None):
         pass
     finally:
         server.server_close()
+    if server.stopped_from_viewer:
+        # Exit code 0: systemd (Restart=on-failure) does not start it again.
+        logging.info("Stopped from the viewer. Start it again with: "
+                     "systemctl --user start zebra-print-bridge")
     return 0
 
 
