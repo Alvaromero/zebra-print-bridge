@@ -1,0 +1,15 @@
+[Unit]
+Description=Zebra Print Bridge (Zebra Browser Print replacement)
+Documentation=file:///opt/zebra-print-bridge/README.md
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=PYTHONPATH=/opt/zebra-print-bridge
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m zebra_print_bridge
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

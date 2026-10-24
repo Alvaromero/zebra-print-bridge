@@ -1,0 +1,19 @@
+{
+  "port": 9100,
+  "allowed_origins": [
+    "https://recommercebrands.com",
+    "https://*.recommercebrands.com"
+  ],
+  "default_printer": null,
+  "usb": {"enabled": true},
+  "virtual_printers": true,
+  "network_printers": [
+    {"host": "192.168.1.50", "port": 9100, "name": "Zebra Dock 1"}
+  ],
+  "cups_queues": [],
+  "overrides": {},
+  "labelary_url": "https://api.labelary.com",
+  "read_timeout": 2.5,
+  "connection_linger": 5.0,
+  "log_level": "INFO"
+}

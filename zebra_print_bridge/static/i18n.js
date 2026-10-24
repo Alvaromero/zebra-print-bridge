@@ -1,0 +1,221 @@
+// Viewer translations. To add a language, copy the "en" block, translate the values and add
+// the code to LANGUAGES. Keys missing in a language fall back to English.
+const LANGUAGES = { en: 'English', es: 'Español' };
+
+const I18N = {
+  en: {
+    'app.offline': 'no connection to the service',
+    'header.language': 'Language',
+    'header.units': 'Units',
+    'header.preview': 'Preview with Labelary',
+    'header.preview_hint': 'Sends the ZPL of the labels you open to api.labelary.com to render them',
+
+    'printers.title': 'Printers',
+    'printers.none': 'No printers.',
+    'printers.virtual': 'Virtual',
+    'printers.ready': 'Ready',
+    'printers.all_flags': 'All ~HQES flags',
+    'printers.error': 'Error',
+    'printers.warning': 'Warning',
+    'printers.delete': 'Delete printer',
+    'printers.delete_confirm': 'Delete this virtual printer?',
+    'printers.add_title': 'New virtual printer',
+    'printers.add_name': 'Name, e.g. Virtual ZD621-300dpi',
+    'printers.add_button': 'Add',
+    'printers.added': 'Added {name}. Reload the web app to see it in its printer list.',
+    'preset.ready': 'Ready',
+    'preset.media_out': 'Media out',
+    'preset.ribbon_out': 'Ribbon out',
+    'preset.head_open': 'Head open',
+    'preset.paused': 'Paused',
+    'preset.calibrate': 'Calibrate (warning)',
+
+    'jobs.title': 'Jobs',
+    'jobs.all_printers': 'All printers',
+    'jobs.show_status': 'Status queries',
+    'jobs.clear': 'Clear',
+    'jobs.new_zpl': 'New ZPL',
+    'jobs.empty': 'Nothing sent yet. Print from the web app or write ZPL in the editor.',
+    'jobs.time': 'Time',
+    'jobs.printer': 'Printer',
+    'jobs.kind': 'Type',
+    'jobs.size': 'Size',
+    'kind.label': 'Label',
+    'kind.status': 'Status',
+    'kind.graphics': 'Graphics',
+    'kind.calibrate': 'Calibration',
+    'kind.config': 'Config',
+    'kind.command': 'Command',
+    'kind.error': 'Error',
+
+    'detail.title': 'Detail',
+    'detail.select': 'Select a job.',
+    'detail.download_zpl': 'Download .zpl',
+    'detail.copy': 'Copy ZPL',
+    'detail.copied': 'ZPL copied',
+    'detail.copy_failed': 'Could not copy',
+    'detail.open_editor': 'Open in editor',
+    'detail.resend': 'Resend',
+    'detail.resent': 'Resent',
+    'detail.response': 'Printer response',
+    'detail.response_empty': '(empty)',
+    'detail.sent': 'Sent',
+    'detail.truncated': '… (truncated, download the .zpl to see all of it)',
+    'detail.utc': 'UTC',
+
+    'editor.title': 'ZPL editor',
+    'editor.placeholder': 'Write or paste ZPL here…',
+    'editor.redraw': 'Redraw',
+    'editor.printer': 'Printer',
+    'editor.send': 'Send',
+    'editor.sent': 'Sent to {name}',
+    'editor.close': 'Close',
+    'editor.graphics_from': 'Graphics (~DG) from',
+    'editor.no_printer': 'none',
+
+    'preview.density': 'Print density',
+    'preview.size': 'Label size',
+    'preview.presets': 'Presets',
+    'preview.rotation': 'Rotation',
+    'preview.quality': 'Quality',
+    'preview.grayscale': 'Grayscale',
+    'preview.bitonal': 'Bitonal',
+    'preview.label': 'Label',
+    'preview.of': 'of',
+    'preview.from_zpl': 'size from ^PW/^LL',
+    'preview.from_printer': 'printer size',
+    'preview.download': 'Download',
+    'preview.pdf_all': 'PDF (all labels)',
+    'preview.loading': 'Rendering…',
+    'preview.failed': 'Could not render: {message}',
+    'preview.off': '{count} label(s). Turn on <b>Preview with Labelary</b> at the top to see them: the ZPL is sent to api.labelary.com.',
+    'preview.disabled': 'Preview is disabled in the configuration (labelary_url).',
+    'preview.no_labels': 'This job has no labels to preview.',
+
+    'lint.title': 'Warnings',
+    'lint.not_utf8': 'Non-ASCII characters ({chars}) without ^CI28 (UTF-8): the printer will print them wrong. Add ^CI28 at the start of the label.',
+    'lint.not_utf8_ci': 'Non-ASCII characters ({chars}) while ^CI{charset} is active, but the data is sent as UTF-8: they will print wrong. Use ^CI28.',
+    'lint.font_coverage': 'The characters {chars} are not in the printer\'s built-in fonts and will print blank. Download a font that includes them (^CW / ^A@).',
+    'lint.labelary': 'Labelary linter',
+    'lint.at_byte': 'byte {byte}',
+  },
+
+  es: {
+    'app.offline': 'sin conexión con el servicio',
+    'header.language': 'Idioma',
+    'header.units': 'Unidades',
+    'header.preview': 'Vista previa con Labelary',
+    'header.preview_hint': 'Envía el ZPL de las etiquetas que abras a api.labelary.com para renderizarlas',
+
+    'printers.title': 'Impresoras',
+    'printers.none': 'No hay impresoras.',
+    'printers.virtual': 'Virtual',
+    'printers.ready': 'Lista',
+    'printers.all_flags': 'Todos los flags de ~HQES',
+    'printers.error': 'Error',
+    'printers.warning': 'Aviso',
+    'printers.delete': 'Eliminar impresora',
+    'printers.delete_confirm': '¿Eliminar esta impresora virtual?',
+    'printers.add_title': 'Nueva impresora virtual',
+    'printers.add_name': 'Nombre, p. ej. Virtual ZD621-300dpi',
+    'printers.add_button': 'Agregar',
+    'printers.added': 'Agregada {name}. Recarga la web para verla en su selector.',
+    'preset.ready': 'Lista',
+    'preset.media_out': 'Sin papel',
+    'preset.ribbon_out': 'Sin ribbon',
+    'preset.head_open': 'Cabezal abierto',
+    'preset.paused': 'Pausada',
+    'preset.calibrate': 'Calibrar (aviso)',
+
+    'jobs.title': 'Trabajos',
+    'jobs.all_printers': 'Todas las impresoras',
+    'jobs.show_status': 'Consultas de estado',
+    'jobs.clear': 'Vaciar',
+    'jobs.new_zpl': 'Nuevo ZPL',
+    'jobs.empty': 'Todavía no se envió nada. Imprime desde la web o escribe ZPL en el editor.',
+    'jobs.time': 'Hora',
+    'jobs.printer': 'Impresora',
+    'jobs.kind': 'Tipo',
+    'jobs.size': 'Tamaño',
+    'kind.label': 'Etiqueta',
+    'kind.status': 'Estado',
+    'kind.graphics': 'Gráficos',
+    'kind.calibrate': 'Calibración',
+    'kind.config': 'Config.',
+    'kind.command': 'Comando',
+    'kind.error': 'Error',
+
+    'detail.title': 'Detalle',
+    'detail.select': 'Selecciona un trabajo.',
+    'detail.download_zpl': 'Descargar .zpl',
+    'detail.copy': 'Copiar ZPL',
+    'detail.copied': 'ZPL copiado',
+    'detail.copy_failed': 'No se pudo copiar',
+    'detail.open_editor': 'Abrir en el editor',
+    'detail.resend': 'Reenviar',
+    'detail.resent': 'Reenviado',
+    'detail.response': 'Respuesta de la impresora',
+    'detail.response_empty': '(vacía)',
+    'detail.sent': 'Enviado',
+    'detail.truncated': '… (recortado, descarga el .zpl para verlo completo)',
+    'detail.utc': 'UTC',
+
+    'editor.title': 'Editor de ZPL',
+    'editor.placeholder': 'Escribe o pega ZPL aquí…',
+    'editor.redraw': 'Redibujar',
+    'editor.printer': 'Impresora',
+    'editor.send': 'Enviar',
+    'editor.sent': 'Enviado a {name}',
+    'editor.close': 'Cerrar',
+    'editor.graphics_from': 'Gráficos (~DG) de',
+    'editor.no_printer': 'ninguna',
+
+    'preview.density': 'Densidad',
+    'preview.size': 'Tamaño',
+    'preview.presets': 'Predefinidos',
+    'preview.rotation': 'Rotación',
+    'preview.quality': 'Calidad',
+    'preview.grayscale': 'Escala de grises',
+    'preview.bitonal': 'Blanco y negro',
+    'preview.label': 'Etiqueta',
+    'preview.of': 'de',
+    'preview.from_zpl': 'tamaño de ^PW/^LL',
+    'preview.from_printer': 'tamaño de la impresora',
+    'preview.download': 'Descargar',
+    'preview.pdf_all': 'PDF (todas)',
+    'preview.loading': 'Renderizando…',
+    'preview.failed': 'No se pudo renderizar: {message}',
+    'preview.off': '{count} etiqueta(s). Activa <b>Vista previa con Labelary</b> arriba para verlas: el ZPL se envía a api.labelary.com.',
+    'preview.disabled': 'La vista previa está deshabilitada en la configuración (labelary_url).',
+    'preview.no_labels': 'Este trabajo no tiene etiquetas para previsualizar.',
+
+    'lint.title': 'Avisos',
+    'lint.not_utf8': 'Caracteres no ASCII ({chars}) sin ^CI28 (UTF-8): la impresora los imprimirá mal. Agrega ^CI28 al inicio de la etiqueta.',
+    'lint.not_utf8_ci': 'Caracteres no ASCII ({chars}) con ^CI{charset} activo, pero los datos se envían en UTF-8: se imprimirán mal. Usa ^CI28.',
+    'lint.font_coverage': 'Los caracteres {chars} no están en las fuentes internas de la impresora y saldrán en blanco. Descarga una fuente que los incluya (^CW / ^A@).',
+    'lint.labelary': 'Linter de Labelary',
+    'lint.at_byte': 'byte {byte}',
+  },
+};
+
+function detectLanguage() {
+  let saved = null;
+  try { saved = localStorage.getItem('lang'); } catch {}
+  if (saved && I18N[saved]) return saved;
+  const browser = (navigator.languages || [navigator.language]).map((l) => String(l).slice(0, 2));
+  return browser.find((l) => I18N[l]) || 'en';
+}
+
+let currentLang = detectLanguage();
+
+function t(key, params = {}) {
+  const text = I18N[currentLang]?.[key] ?? I18N.en[key] ?? key;
+  return text.replace(/\{(\w+)\}/g, (_, name) => params[name] ?? '');
+}
+
+function applyStaticTranslations() {
+  document.documentElement.lang = currentLang;
+  document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+  document.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
+}

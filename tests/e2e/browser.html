@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Zebra Print Bridge test page</title>
+  <script src="vendor/BrowserPrint-3.1.250.min.js"></script>
+  <style>
+    body { font: 14px system-ui, sans-serif; margin: 2rem; max-width: 900px; }
+    button { margin: 0 .5rem .5rem 0; }
+    pre { background: #f4f4f4; padding: 1rem; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Zebra Print Bridge test page</h1>
+  <p>Makes the same calls as the web app, with the official unmodified library.</p>
+  <select id="printers"></select>
+  <div>
+    <button onclick="discover()">getDefaultDevice + getLocalDevices</button>
+    <button onclick="status()">sendThenRead(~HQES)</button>
+    <button onclick="print()">Print test label</button>
+  </div>
+  <pre id="log"></pre>
+  <script>
+    let devices = [];
+    const log = (msg) => {
+      document.getElementById('log').textContent += new Date().toLocaleTimeString() + '  ' + msg + '\n';
+    };
+    const selected = () => devices.find((d) => d.uid === document.getElementById('printers').value);
+
+    function discover() {
+      BrowserPrint.getDefaultDevice('printer', (printer) => {
+        log('default: ' + JSON.stringify(printer && { name: printer.name, uid: printer.uid }));
+        BrowserPrint.getLocalDevices((list) => {
+          devices = list;
+          document.getElementById('printers').innerHTML =
+            list.map((d) => `<option value="${d.uid}">${d.name} (${d.connection})</option>`).join('');
+          log('available: ' + list.map((d) => d.uid).join(', '));
+          // ?auto: print and query the status without clicks (handy with headless Chrome).
+          if (location.search.includes('auto') && list.length) {
+            print();
+            status();
+          }
+        }, (e) => log('ERROR available: ' + (e || 'Error getting local devices, verify zebra browser print')), 'printer');
+      }, (e) => log('ERROR default: ' + (e || '(empty: is the service down or blocked by the browser?)')));
+    }
+
+    function status() {
+      const t = performance.now();
+      selected().sendThenRead('~HQES',
+        (data) => log(`status (${Math.round(performance.now() - t)} ms):\n` + JSON.stringify(data)),
+        (e) => log('ERROR status: ' + e));
+    }
+
+    function print() {
+      // ^CI28 + accents and a non-Latin name, to exercise the viewer's encoding warnings.
+      selected().send('^XA^CI28^CF0,40^FO40,40^FDZebra Print Bridge^FS^FO40,100^FDSão Paulo · Zürich · Ñuñoa^FS'
+        + '^FO40,160^FD' + new Date().toISOString() + '^FS^XZ',
+        (data) => log('send OK: ' + JSON.stringify(data)),
+        (e) => log('ERROR send: ' + e));
+    }
+
+    discover();
+  </script>
+</body>
+</html>
