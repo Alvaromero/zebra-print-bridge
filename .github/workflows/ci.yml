@@ -12,7 +12,7 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: pipx run ruff==0.17.4 check .
       - run: pipx run ruff==0.17.4 format --check .
 
@@ -23,12 +23,16 @@ jobs:
       matrix:
         python: ["3.10", "3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: "24"
+      # Optional tools some tests use: .desktop validation, PDF rendering and Pillow (image
+      # formats; also the reference the built-in PNG/BMP decoders are compared with).
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends desktop-file-utils poppler-utils
+      - run: python -m pip install Pillow
       # Zebra's BrowserPrint library is not in the repository: the end-to-end test is skipped.
       - run: python -m unittest -v

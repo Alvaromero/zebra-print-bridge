@@ -28,6 +28,20 @@ GLOBAL_WANTS = Path("/etc/systemd/user/default.target.wants") / UNIT
 PACKAGE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def spawn_detached(argv: list, env: dict = None):
+    """Start a program in its own session that outlives us, without leaving a child to reap.
+
+    `setsid -f` forks the program and exits at once, so nothing stays attached to this process
+    (a bare Popen of a long-lived process warns "subprocess is still running" when collected).
+    """
+    io = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    setsid = shutil.which("setsid")
+    if setsid:
+        subprocess.run([setsid, "-f", *argv], env=env, check=False, timeout=10, **io)
+    else:  # util-linux is always there on Ubuntu; just in case
+        subprocess.Popen(argv, env=env, start_new_session=True, **io)
+
+
 class Control:
     def __init__(self, port: int = None, config_path: str = None, config: dict = None):
         config = config or load_config(config_path)
@@ -100,12 +114,8 @@ class Control:
                 raise RuntimeError(result.stderr.strip() or "systemctl start failed")
         else:
             # Development: a detached process that outlives this command.
-            subprocess.Popen(
+            spawn_detached(
                 [sys.executable, "-m", "zebra_print_bridge", "--port", str(self.port)],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
                 env=dict(os.environ, PYTHONPATH=PACKAGE_ROOT),
             )
         if not self.wait(True):
@@ -139,9 +149,7 @@ class Control:
         opener = shutil.which("xdg-open")
         if not opener:
             raise RuntimeError(f"xdg-open not found; open {self.viewer_url}")
-        subprocess.Popen(
-            [opener, self.viewer_url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True
-        )
+        spawn_detached([opener, self.viewer_url])
         return message
 
     def status(self) -> dict:
