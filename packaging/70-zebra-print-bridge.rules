@@ -1,0 +1,4 @@
+# Zebra printers (vendor 0a5f) on the usblp driver (/dev/usb/lpX).
+# uaccess grants access to the user with the active session on this machine; the file must
+# sort before 73-seat-late.rules for the tag to take effect.
+SUBSYSTEM=="usbmisc", KERNEL=="lp[0-9]*", ATTRS{idVendor}=="0a5f", MODE="0660", GROUP="lp", TAG+="uaccess"

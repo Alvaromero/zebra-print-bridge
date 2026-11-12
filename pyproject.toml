@@ -1,0 +1,54 @@
+[project]
+name = "zebra-print-bridge"
+dynamic = ["version"]
+description = "Local replacement for Zebra Browser Print on Linux, with virtual printers and a ZPL viewer"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Alvaro Romero", email = "10608006+Alvaromero@users.noreply.github.com"}]
+requires-python = ">=3.10"
+dependencies = []
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Printing",
+]
+
+[project.urls]
+Homepage = "https://github.com/Alvaromero/zebra-print-bridge"
+Issues = "https://github.com/Alvaromero/zebra-print-bridge/issues"
+
+[project.optional-dependencies]
+# More image formats (JPG, GIF, TIFF, WebP) and faster conversion. The top-bar icon needs
+# PyGObject plus the Ayatana AppIndicator typelib, which come from the distribution
+# (sudo apt install gir1.2-ayatanaappindicator3-0.1), not from PyPI.
+images = ["Pillow"]
+
+[project.scripts]
+zebra-print-bridge = "zebra_print_bridge.__main__:main"
+zebra-print-bridge-ctl = "zebra_print_bridge.control:main"
+zebra-print-bridge-tray = "zebra_print_bridge.tray:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["zebra_print_bridge"]
+
+[tool.setuptools.dynamic]
+version = {attr = "zebra_print_bridge.__version__"}
+
+[tool.setuptools.package-data]
+zebra_print_bridge = ["static/*"]
+
+# Lint with `pipx run ruff check` and format with `pipx run ruff format` (or `uvx ruff ...`);
+# ruff is a development tool, not a dependency.
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["tests/e2e/vendor"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, bugbear and import order.
+select = ["E", "W", "F", "B", "I"]

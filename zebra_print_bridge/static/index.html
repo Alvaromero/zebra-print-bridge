@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zebra Print Bridge</title>
+<link rel="icon" href="/ui/assets/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/ui/assets/style.css">
+</head>
+<body>
+<header>
+  <h1>Zebra Print Bridge</h1>
+  <span class="muted mono" id="version"></span>
+  <nav class="tabs">
+    <button class="tab active" data-view="jobs" data-i18n="nav.jobs"></button>
+    <button class="tab" data-view="settings"><span data-i18n="nav.settings"></span><span class="badge" id="settings-badge" hidden></span></button>
+  </nav>
+  <span class="spacer"></span>
+  <label class="field"><span data-i18n="header.language"></span> <select id="lang"></select></label>
+  <label class="field"><span data-i18n="header.units"></span>
+    <select id="units"><option value="in">in</option><option value="cm">cm</option><option value="mm">mm</option></select>
+  </label>
+  <label class="check" id="labelary-toggle" hidden data-i18n-title="header.preview_hint">
+    <input type="checkbox" id="labelary"> <span data-i18n="header.preview"></span>
+  </label>
+</header>
+
+<div id="origin-banner"></div>
+<main id="jobs-view">
+  <section>
+    <h2><span data-i18n="printers.title"></span> <span class="spacer"></span><span class="badge" id="printer-count">0</span></h2>
+    <div class="scroll" id="printers"></div>
+    <form class="add" id="add-form">
+      <strong data-i18n="printers.add_title"></strong>
+      <input name="name" data-i18n-placeholder="printers.add_name" required>
+      <div class="row">
+        <select name="dpi" id="add-dpi"></select>
+        <select id="add-preset"></select>
+      </div>
+      <div class="row">
+        <input name="width" class="num" type="number" step="any" min="0" required> ×
+        <input name="height" class="num" type="number" step="any" min="0" required>
+        <span class="muted unit-label"></span>
+      </div>
+      <button class="primary" type="submit" data-i18n="printers.add_button"></button>
+    </form>
+  </section>
+
+  <section>
+    <h2><span data-i18n="jobs.title"></span> <span class="spacer"></span><span class="badge" id="job-count">0</span></h2>
+    <div class="toolbar">
+      <select id="filter-printer"></select>
+      <label class="check"><input type="checkbox" id="show-status"> <span data-i18n="jobs.show_status"></span></label>
+      <span class="spacer"></span>
+      <button id="new-zpl" data-i18n="jobs.new_zpl"></button>
+      <button class="danger" id="clear" data-i18n="jobs.clear"></button>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th data-i18n="jobs.time"></th><th data-i18n="jobs.printer"></th><th data-i18n="jobs.kind"></th><th data-i18n="jobs.size"></th></tr></thead>
+        <tbody id="jobs"></tbody>
+      </table>
+      <div class="empty" id="jobs-empty" data-i18n="jobs.empty"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="detail-title" data-i18n="detail.title"></h2>
+    <div class="scroll" id="detail"></div>
+  </section>
+</main>
+<main id="settings-view" hidden></main>
+<div id="stopped" hidden>
+  <div class="box">
+    <h2 data-i18n="stopped.title"></h2>
+    <div data-i18n="stopped.help"></div>
+    <pre class="mono"><span id="stopped-command"></span><button id="stopped-copy" data-i18n="stopped.copy"></button></pre>
+    <div class="muted" data-i18n="stopped.login"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script type="module" src="/ui/assets/app.js"></script>
+</body>
+</html>

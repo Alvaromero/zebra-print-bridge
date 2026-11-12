@@ -1,0 +1,28 @@
+[Desktop Entry]
+Type=Application
+Name=Zebra Print Bridge
+GenericName=Label printer bridge
+Comment=Open the viewer of the Zebra Browser Print replacement (starts the service if needed)
+Comment[es]=Abre el visor del reemplazo de Zebra Browser Print (inicia el servicio si hace falta)
+Exec=zebra-print-bridge-ctl open --notify
+Icon=zebra-print-bridge
+Terminal=false
+Categories=Utility;
+Keywords=zebra;zpl;label;printer;browser print;etiqueta;impresora;
+StartupNotify=false
+Actions=start;stop;tray;
+
+[Desktop Action start]
+Name=Start service
+Name[es]=Iniciar servicio
+Exec=zebra-print-bridge-ctl start --notify
+
+[Desktop Action stop]
+Name=Stop service
+Name[es]=Detener servicio
+Exec=zebra-print-bridge-ctl stop --notify
+
+[Desktop Action tray]
+Name=Show top-bar icon
+Name[es]=Mostrar icono en la barra superior
+Exec=zebra-print-bridge-tray

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Zebra Print Bridge (top-bar icon)
+Name[es]=Zebra Print Bridge (icono en la barra superior)
+Comment=Service state, printers and websites waiting for approval
+Exec=zebra-print-bridge-tray
+Icon=zebra-print-bridge
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=3

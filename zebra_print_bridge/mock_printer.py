@@ -1,0 +1,104 @@
+"""Simulated Zebra network printer (TCP), to test the network transport without hardware.
+
+Usage: python3 -m zebra_print_bridge.mock_printer --host 127.0.0.2 --port 9100
+(the bridge already uses 127.0.0.1:9100, hence another loopback address or port).
+"""
+
+import argparse
+import logging
+import re
+import socketserver
+import threading
+
+from .zpl import ERROR_FLAGS, getvar_response, hqes_response
+
+log = logging.getLogger(__name__)
+
+QUERY_RE = re.compile(rb'~HQES|~HI|!\s*U1\s+getvar\s+"([^"]+)"', re.I)
+
+
+class MockPrinter(socketserver.ThreadingTCPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(self, host="127.0.0.1", port=0):
+        self.received = bytearray()
+        self.received_event = threading.Condition()
+        self.errors = []  # ERROR_FLAGS keys reported by ~HQES
+        self.model = "MOCK-ZD421-203dpi"
+        self.sgd = {  # answers to "! U1 getvar"; unknown variables answer "?"
+            "device.friendly_name": "MOCK-ZD421",
+            "device.unique_id": "D2J000000001",
+            "appl.name": "V93.21.26Z",
+            "appl.link_os_version": "7.0",
+            "ezpl.print_method": "thermal trans",
+            "ezpl.media_type": "gap/notch",
+            "media.printmode": "tear off",
+            "ezpl.print_width": "832",
+            "zpl.label_length": "1218",
+            "odometer.total_print_length": "8560 INCHES, 21744 CENTIMETERS",
+        }
+        super().__init__((host, port), _Handler)
+
+    @property
+    def address(self):
+        return self.server_address[:2]
+
+    def wait_for(self, needle: bytes, timeout=2.0) -> bool:
+        with self.received_event:
+            return self.received_event.wait_for(lambda: needle in self.received, timeout)
+
+    def start(self):
+        thread = threading.Thread(target=self.serve_forever, daemon=True)
+        thread.start()
+        return self
+
+    def stop(self):
+        self.shutdown()
+        self.server_close()
+
+
+class _Handler(socketserver.BaseRequestHandler):
+    def handle(self):
+        pending = b""
+        while True:
+            chunk = self.request.recv(4096)
+            if not chunk:
+                return
+            with self.server.received_event:
+                self.server.received += chunk
+                self.server.received_event.notify_all()
+            log.info("received %d bytes: %r", len(chunk), chunk[:80])
+            pending += chunk
+            matches = list(QUERY_RE.finditer(pending))
+            for match in matches:
+                if match.group(1):
+                    self.request.sendall(getvar_response(self.server.sgd.get(match.group(1).decode().lower())))
+                elif match.group(0).upper() == b"~HI":
+                    self.request.sendall(f"\x02{self.server.model},V0.0.0,8,8192KB\x03\r\n".encode())
+                else:
+                    self.request.sendall(hqes_response(self.server.errors))
+            # Keep a short tail in case a command is split across two packets.
+            pending = (pending[matches[-1].end() :] if matches else pending)[-64:]
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Simulated Zebra network printer (TCP)")
+    parser.add_argument("--host", default="127.0.0.2")
+    parser.add_argument("--port", type=int, default=9100)
+    parser.add_argument(
+        "--error", action="append", default=[], choices=sorted(ERROR_FLAGS), help="error reported by ~HQES (repeatable)"
+    )
+    args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+    printer = MockPrinter(args.host, args.port)
+    printer.errors = args.error
+    log.info("Simulated printer on %s:%s", *printer.address)
+    try:
+        printer.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()
