@@ -35,6 +35,15 @@ Hay dos paquetes. Los dos se generan en `dist/`, que no se sube a git:
 
 3. **Hacer commit.** El paquete se construye con los archivos tal como están, incluidos los cambios sin commit. Construir desde un commit te dice exactamente qué lleva cada versión.
 
+4. **Publicar una release (lo recomendado para todo lo que repartas).** Añade la sección de la versión a `CHANGELOG.md`, fusiona el cambio de versión con un pull request y etiqueta `main`:
+
+   ```bash
+   git switch main && git pull
+   git tag v0.4.1 && git push origin v0.4.1
+   ```
+
+   El [workflow de release](../.github/workflows/release.yml) comprueba que la etiqueta coincide con `__version__`, ejecuta los tests, construye el `.deb` y el wheel en GitHub y los publica con `SHA256SUMS` y una atestación de procedencia firmada. Manda a tu equipo a la página de la release en vez de pasar archivos: así pueden comprobar que lo que instalan se construyó desde el código público (README, "Verifying a download"). Las secciones 3 y 4 de abajo son para construir en local.
+
 ## 3. Construir el `.deb`
 
 ```bash

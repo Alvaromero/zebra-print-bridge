@@ -35,6 +35,15 @@ There are two packages. Both are written to `dist/`, which is not committed:
 
 3. **Commit.** The package is built from the working tree, uncommitted changes included. Building from a commit tells you exactly what each version contains.
 
+4. **Publish a release (recommended for anything you hand out).** Add the version's section to `CHANGELOG.md`, merge the version bump through a pull request, then tag `main`:
+
+   ```bash
+   git switch main && git pull
+   git tag v0.4.1 && git push origin v0.4.1
+   ```
+
+   The [Release workflow](../.github/workflows/release.yml) checks that the tag matches `__version__`, runs the tests, builds the `.deb` and the wheel on GitHub, and publishes them with `SHA256SUMS` and a signed build provenance attestation. Point your team to the release page instead of sending files: they can check that what they install was built from the public code (README, "Verifying a download"). Sections 3 and 4 below are for building locally.
+
 ## 3. Build the `.deb`
 
 ```bash
