@@ -94,8 +94,10 @@ class LoadConfigTest(unittest.TestCase):
 
     def test_invalid_json_names_the_line(self):
         with self.assertRaises(ConfigError) as ctx:
-            self.load('{\n  "port": 9100,\n}')
-        self.assertIn("invalid JSON at line 2", str(ctx.exception))
+            # A missing comma: every Python version reports it at the same place (a trailing comma
+            # moved from line 3 to line 2 in Python 3.13).
+            self.load('{\n  "port": 9100\n  "host": "127.0.0.1"\n}')
+        self.assertIn("invalid JSON at line 3, column 3", str(ctx.exception))
 
     def test_not_an_object(self):
         with self.assertRaises(ConfigError):
