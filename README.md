@@ -13,6 +13,8 @@ A replacement for **Zebra Browser Print** on Ubuntu (22.04 or newer), aimed at *
 
 ## Install
 
+Download the `.deb` from the [latest release](https://github.com/Alvaromero/zebra-print-bridge/releases/latest) and install it with `sudo apt install ./zebra-print-bridge_<version>_all.deb`. Releases are built by GitHub Actions from the tagged code ([`release.yml`](.github/workflows/release.yml)), not on anyone's machine; see [Verifying a download](#verifying-a-download) and [What the package changes on your system](#what-the-package-changes-on-your-system).
+
 Three ways, from most to least complete:
 
 | | Command | What you get |
@@ -37,6 +39,39 @@ After installing the `.deb`, the service of the users logged in is already runni
 Run `./install.sh` again to upgrade. If a USB printer was already plugged in, unplug it and plug it back in after installing.
 
 Uninstall: `sudo apt remove zebra-print-bridge` or `./uninstall.sh`. Both keep the configuration, the virtual printers and the job history.
+
+### Verifying a download
+
+Each release has a `SHA256SUMS` file and a signed [build provenance attestation](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations) that ties every file to the commit and workflow run that built it:
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing     # the file is the one published
+gh attestation verify zebra-print-bridge_<version>_all.deb --repo Alvaromero/zebra-print-bridge   # it was built here, from the tag
+```
+
+To look inside the package before installing it:
+
+```bash
+dpkg-deb -c zebra-print-bridge_<version>_all.deb              # every file it installs
+dpkg-deb -e zebra-print-bridge_<version>_all.deb control/     # its maintainer scripts, to read them
+```
+
+You can also build it yourself from the tag with `tools/build_deb.sh`.
+
+### What the package changes on your system
+
+Files (`dpkg -L zebra-print-bridge` lists them once installed):
+
+- `/opt/zebra-print-bridge/`: the program (Python, readable) and its documentation.
+- `/usr/bin/zebra-print-bridge`, `zebra-print-bridge-ctl`, `zebra-print-bridge-tray`: small launchers.
+- `/usr/lib/systemd/user/zebra-print-bridge.service`: a **user** service (it runs as you, not as root).
+- `/usr/lib/udev/rules.d/70-zebra-print-bridge.rules`: gives the user at the screen access to Zebra USB printers (vendor `0a5f`) only.
+- `/usr/lib/modules-load.d/zebra-print-bridge.conf`: loads the kernel's own `usblp` printer driver at boot.
+- The application menu entry, the top-bar icon's autostart entry (`/etc/xdg/autostart`), the icon and `/usr/share/doc/zebra-print-bridge/`.
+
+What its maintainer scripts do as root: reload udev rules and load `usblp`; refresh the icon and menu caches; for the users logged in, reload their systemd user manager and, on a first install, enable and start their user service; on upgrade, restart the services that are running and warn about leftovers of a previous `install.sh`; on removal, stop and disable the services and close the top-bar icon. They do not download anything, add users, open ports or touch other packages.
+
+What the service does: it listens only on `127.0.0.1:9100`. It connects out only to the printers you configure or search for (TCP 9100, mDNS), to Labelary when you turn the preview on, and to a URL a web app asks it to print (`sendUrl`). No telemetry. Its files live in `~/.config/zebra-print-bridge` and `~/.local/state/zebra-print-bridge`.
 
 ## Daily use
 

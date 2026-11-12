@@ -1,0 +1,66 @@
+name: Release
+
+# Pushing a tag like v0.4.0 builds the .deb and the wheel from that tag, here on GitHub, and
+# publishes them as a GitHub release with SHA256SUMS and a signed build provenance attestation,
+# so anyone can check that a package was built from this repository's code.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write      # create the release
+  id-token: write      # sign the provenance attestation
+  attestations: write  # store it
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: The tag matches the version in the code
+        run: |
+          version="$(python -c 'import zebra_print_bridge as z; print(z.__version__)')"
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match __version__ $version"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Tests
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends desktop-file-utils poppler-utils
+          python -m pip install Pillow setuptools
+          python -m unittest
+
+      - name: Build the packages
+        run: |
+          tools/build_deb.sh
+          python tools/build_wheel.py
+          cd dist && sha256sum -- *.deb *.whl > SHA256SUMS && cat SHA256SUMS
+
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/*.deb
+            dist/*.whl
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Release notes: this version's section of CHANGELOG.md.
+          python - > notes.md <<'EOF'
+          import os, re
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          match = re.search(rf"^## {re.escape(os.environ['VERSION'])}\b.*?\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+          print(match.group(1).strip() if match else "See CHANGELOG.md.")
+          print()
+          print("**Verify a download:** `sha256sum -c SHA256SUMS --ignore-missing`, and that it was built here:")
+          print(f"`gh attestation verify <file> --repo {os.environ['GITHUB_REPOSITORY']}`.")
+          EOF
+          gh release create "$GITHUB_REF_NAME" dist/*.deb dist/*.whl dist/SHA256SUMS \
+            --title "Zebra Print Bridge $VERSION" --notes-file notes.md --verify-tag
